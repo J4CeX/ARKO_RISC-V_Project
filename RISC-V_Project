@@ -118,13 +118,13 @@ bouncing_ball:
 		# --- Calculating velocity ---
 		set_vx:
 			mv t4, t2
-			bgtz t4, skip_svx	# if vx is greater than 0 then skip negation
+			bgtz t4, skip_svx	# if vx > 0 then skip negation
 			neg t4, t2	
 			skip_svx:
 			div t4, t2, t4		# set temporary vx in t4 as 1 or -1 for animation
 		set_vy:
 			mv t5, t3
-			bgtz t5, skip_svy	# if vy is greater than 0 then skip negation
+			bgtz t5, skip_svy	# if vy > 0 then skip negation
 			neg t5, t3
 			skip_svy:
 			div t5, t3, t5		# set temporary vy in t5 as 1 or -1 for animation
@@ -132,10 +132,12 @@ bouncing_ball:
 		# --- speed update ---
 		add t0, t0, t4		# x = x + vx
 		add t1, t1, t5		# y = y + vy
-		ble t0, a3, neg_vx	# if x <= 0 then vx = -vx
-		bge t0, a4, neg_vx	# if x >= 256 then vx = -vx
-		ble t1, a3, neg_vy	# if y <= 0 then vy = -vy
-		bge t1, a4, neg_vy	# if y >= 256 then vy = -vy
+		check_vx:
+			blt t0, a3, neg_vx	# if x < 0 then vx = -vx
+			bgt t0, a4, neg_vx	# if x > 256 then vx = -vx
+		check_vy:
+			blt t1, a3, neg_vy	# if y < 0 then vy = -vy
+			bgt t1, a4, neg_vy	# if y > 256 then vy = -vy
 	
 		# --- pause ---
 		j sum_v		# sum_v (a6) = |vx| + |vy|
@@ -154,11 +156,11 @@ bouncing_ball:
 # --- setting functions ---	
 neg_vx:
 	neg t2, t2
-	j clear_pixel
+	j check_vy
 	
 neg_vy:
 	neg t3, t3
-	j clear_pixel
+	j set_delay
 	
 clear_pixel:
 	li t4, 0x00FFFFFF
