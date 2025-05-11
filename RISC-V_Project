@@ -1,0 +1,198 @@
+	.eqv SYS_EXIT, 93
+	.eqv SYS_SBRK, 9
+	.eqv GET_INT, 5
+	.eqv PUT_STRING, 4
+	
+	.data
+	prompt_x:      	.ascii "Enter x: "
+			.byte 0
+	prompt_y:      	.ascii "Enter y: "
+			.byte 0
+	prompt_vx:      .ascii "Enter vx: "
+                   	.byte 0
+    	prompt_vy:     	.ascii "Enter vy: "
+                   	.byte 0
+       	prompt_value_error:	.ascii "Value error"
+       				.byte
+	
+	.text
+main:
+	# --- Enter x ---
+	la a0, prompt_x
+	li a7, PUT_STRING
+	ecall
+
+	li a7, GET_INT
+	ecall
+	mv t0, a0
+
+	# --- Enter y ---
+	la a0, prompt_y
+	li a7, PUT_STRING
+	ecall
+
+	li a7, GET_INT
+	ecall
+	mv t1, a0
+
+	# --- Enter x ---
+	la a0, prompt_vx
+	li a7, PUT_STRING
+	ecall
+
+	li a7, GET_INT
+	ecall
+	mv t2, a0
+	
+	# --- Enter y ---
+	la a0, prompt_vy
+	li a7, PUT_STRING
+	ecall
+	
+	li a7, GET_INT
+	ecall
+	mv t3, a0
+	
+	# t0 - x
+	# t1 - y
+	# t2 - vx
+	# t3 - vy
+	
+	li t4, 256
+	
+	# --- checking if x and y are in [0; 256] ---
+	bltz t0, done
+	bgt t0, t4, done
+	bltz t1, done
+	bgt t1, t4, done
+	
+	# --- checking if vx and vy are not both equal zero ---
+	bnez t2, bitmap_allocation
+	beqz t3, done
+
+	# --- Alocation the bufor of bitmap ---
+bitmap_allocation:
+	li a0, 262144
+	li a7, SYS_SBRK
+	ecall
+	mv s0, a0           # s0 - bufor
+
+	# --- Configuration the bitmap display ---
+	li t4, 256
+	li a1, 0xFFFF0000
+
+	sw t4, 0(a1)
+	sw t4, 4(a1)
+	sw s0, 8(a1)
+	li a2, 1
+	sw a2, 12(a1)
+	
+	li t4, 0x00FFFFFF
+	mv t5, s0
+	li a3, 262144
+	li t6, 0
+	clear_screen:
+		sw t4, 0(t5)
+		addi t5, t5, 4
+		addi t6, t6, 1
+		blt t6, a3, clear_screen
+
+
+# --- bouncing ball animation ---	
+bouncing_ball:
+	li a3, 0
+	li a4, 256
+	
+	render_pixel:
+		# a6 - sum of absolute values of vx and vy
+		li a6, 0
+		
+		li t4, 0x00000000	# white
+		li a5, 256		# screen width
+		mul a5, t1, a5		# y * width
+		add a5, a5, t0		# + x
+		slli a5, a5, 2		# * 4 (pixel size)
+		add a5, s0, a5		# pixel address
+		sw t4, 0(a5)		# save white pixel
+	
+		# --- Calculating velocity ---
+		set_vx:
+			mv t4, t2
+			bgtz t4, skip_svx	# if vx is greater than 0 then skip negation
+			neg t4, t2	
+			skip_svx:
+			div t4, t2, t4		# set temporary vx in t4 as 1 or -1 for animation
+		set_vy:
+			mv t5, t3
+			bgtz t5, skip_svy	# if vy is greater than 0 then skip negation
+			neg t5, t3
+			skip_svy:
+			div t5, t3, t5		# set temporary vy in t5 as 1 or -1 for animation
+		
+		add t0, t0, t4
+		add t1, t1, t5
+		ble t0, a3, neg_vx
+		bge t0, a4, neg_vx
+		ble t1, a3, neg_vy
+		bge t1, a4, neg_vy
+	
+		# --- pause --
+		j sum_v
+		delay:
+			li t4, 1
+			bgtz a6, set_delay
+			li a6, 1
+		set_delay: 
+			li t5, 200000
+			div t5, t5, a6
+		
+		pause:
+			addi t4, t4, 1
+			blt t4, t5, pause
+			
+		j clear_pixel
+	
+		
+# --- setting functions ---	
+neg_vx:
+	neg t2, t2
+	j clear_pixel
+	
+neg_vy:
+	neg t3, t3
+	j clear_pixel
+	
+clear_pixel:
+	li t4, 0x00FFFFFF
+	sw t4, 0(a5)
+	j render_pixel
+	
+sum_v:
+	mv t4, t2
+	mv t5, t3
+	bgtz t4, skip_negsumvx
+	jal ra, tmp_neg_vx
+	skip_negsumvx:
+	
+	bgtz t5, skip_negsumvy
+	jal ra, tmp_neg_vy
+	skip_negsumvy:
+	add a6, t4, t5
+	j delay
+	
+tmp_neg_vx:
+	neg t4, t2
+	ret
+
+tmp_neg_vy:
+	neg t5, t3
+	ret
+
+# --- Exit (only when given values are incorrect --
+done:
+	la a0, prompt_value_error
+	li a7, PUT_STRING
+	ecall
+	
+	li a7, SYS_EXIT
+	ecall
